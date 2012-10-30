@@ -445,7 +445,10 @@ static Class _layerClassToUseForDTAttributedTextContentView = nil;
 //
 // Someone posted a workaround: https://github.com/kcoop/DTCoreText/commit/9e4f30542f70caa3cfb457516465c5a7076cb0b5  and that's
 // what I have implemented here. It works well enough.
-/*
+//
+// Hsoi 29-Oct-2012 - Nope. It doesn't work. It works sometimes, and in others it makes things even worse.
+// We'll just have to live with the original behavior for now.
+
 - (CGSize)suggestedFrameSizeToFitEntireStringConstraintedToWidth:(CGFloat)width
 {
 	if (!isnormal(width))
@@ -460,7 +463,8 @@ static Class _layerClassToUseForDTAttributedTextContentView = nil;
 	
 	return neededSize;
 }
-*/
+
+/*
 - (CGSize)suggestedFrameSizeToFitEntireStringConstraintedToWidth:(CGFloat)width
 {
 	if (!isnormal(width))
@@ -486,7 +490,7 @@ static Class _layerClassToUseForDTAttributedTextContentView = nil;
 	
 	return neededSize;
 }
-
+*/
 
 - (CGSize)attributedStringSizeThatFits:(CGFloat)width
 {
