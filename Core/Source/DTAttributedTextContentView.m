@@ -428,6 +428,24 @@ static Class _layerClassToUseForDTAttributedTextContentView = nil;
 	return neededSize;
 }
 
+// Hsoi 29-Oct-2012 - I kept noticing a problem where text in our DTAttributedTextCell instances wasn't drawing
+// correctly: it'd be properly inset 5 pixels at the top, but at the bottom it'd be flush with the edge. In
+// examining with DCIntrospect I saw the problem was actually the DTAttributedTextContentView instance was
+// somehow ending up 5 pixels taller than I expected! That is, the value returned by -[DTAttributedTextCell requiredRowHeightInTableView:]
+// was returning one value (e.g. 50) but then somehow the frame of the ContentView was being changed
+// to something else (55, most commonly in my case). WTF?
+//
+// Tracing it down, -[DTAttributedTextCell layoutSubviews] calls -[DTAttributedContentView setFrame:] which eventually calls
+// -relayoutText, and the -sizeThatFits: ends up returning the 55 and changing the frame of the DTAttributedTextContentView
+// in a manner not consistent with the value returned by -requiredRowHeightInTableView:. Huzzah....
+//
+// A little searching turned up this: https://github.com/Cocoanetics/DTCoreText/issues/102
+//
+// Looks like this is a known problem that's been hanging open for some time.
+//
+// Someone posted a workaround: https://github.com/kcoop/DTCoreText/commit/9e4f30542f70caa3cfb457516465c5a7076cb0b5  and that's
+// what I have implemented here. It works well enough.
+/*
 - (CGSize)suggestedFrameSizeToFitEntireStringConstraintedToWidth:(CGFloat)width
 {
 	if (!isnormal(width))
@@ -442,6 +460,33 @@ static Class _layerClassToUseForDTAttributedTextContentView = nil;
 	
 	return neededSize;
 }
+*/
+- (CGSize)suggestedFrameSizeToFitEntireStringConstraintedToWidth:(CGFloat)width
+{
+	if (!isnormal(width))
+	{
+		width = self.bounds.size.width;
+	}
+	
+	CGSize neededSize;
+	
+	if (_attributedString) {
+		DTCoreTextLayouter *tempLayouter = [[DTCoreTextLayouter alloc] initWithAttributedString:_attributedString];
+		DTCoreTextLayoutFrame *tempLayoutFrame = [tempLayouter layoutFrameWithRect:CGRectMake(0.0, 0.0, width, CGFLOAT_OPEN_HEIGHT) range:NSMakeRange(0, 0)];
+		// Getting the lines has the side effect of setting the frame.
+		NSArray *ignoreMe = tempLayoutFrame.lines;
+		// This is just to shut the compiler up - it will be overwritten by the following line.
+		neededSize.width = ignoreMe.count;
+		neededSize = tempLayoutFrame.frame.size;
+	} else {
+		neededSize = CGSizeMake(width, 0.0f);
+	}
+	// add vertical insets
+	neededSize.height += _edgeInsets.top + _edgeInsets.bottom;
+	
+	return neededSize;
+}
+
 
 - (CGSize)attributedStringSizeThatFits:(CGFloat)width
 {
