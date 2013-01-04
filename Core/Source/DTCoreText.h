@@ -4,9 +4,6 @@
 #import <ApplicationServices/ApplicationServices.h>
 #endif
 
-// DTFoundation
-#import "DTFoundation.h"
-
 // global constants
 #import "DTCoreTextConstants.h"
 #import "DTCompatibility.h"
@@ -16,12 +13,14 @@
 
 // common utilities
 #import "CGUtils.h"
+#if TARGET_OS_IPHONE
+#import "DTCoreTextFunctions.h"
+#endif
 
 // common classes
 #import "DTCSSListStyle.h"
 #import "DTTextBlock.h"
 #import "DTCSSStylesheet.h"
-#import "DTCoreText.h"
 #import "DTCoreTextFontDescriptor.h"
 #import "DTHTMLElement.h"
 #import "DTTextAttachment.h"
@@ -38,10 +37,13 @@
 #import "NSAttributedString+DTCoreText.h"
 #import "DTHTMLAttributedStringBuilder.h"
 
+// parsing classes
+#import "DTHTMLParserNode.h"
+#import "DTHTMLParserTextNode.h"
+
 
 // These classes only work with UIKit on iOS
 #if TARGET_OS_IPHONE
-
 
 #import "DTLazyImageView.h"
 #import "DTLinkButton.h"
@@ -56,6 +58,8 @@
 #import "DTCoreTextLayoutFrame.h"
 #import "DTCoreTextLayoutLine.h"
 #import "DTCoreTextLayouter.h"
+
+#import "UIFont+DTCoreText.h"
 
 #endif
 

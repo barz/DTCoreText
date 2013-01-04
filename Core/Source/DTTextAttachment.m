@@ -8,16 +8,17 @@
 
 #import "DTTextAttachment.h"
 #import "DTCoreText.h"
+#import "DTFoundation.h"
 
 @implementation DTTextAttachment
 {
 	CGSize _originalSize;
 	CGSize _displaySize;
 	DTTextAttachmentVerticalAlignment _verticalAlignment;
-	id contents;
+	id _contents;
     NSDictionary *_attributes;
     
-    DTTextAttachmentType contentType;
+    DTTextAttachmentType _contentType;
 	
 	NSURL *_contentURL;
 	NSURL *_hyperLinkURL;
@@ -32,19 +33,19 @@
 	// determine type
 	DTTextAttachmentType attachmentType;
 	
-	if ([element.tagName isEqualToString:@"img"])
+	if ([element.name isEqualToString:@"img"])
 	{
 		attachmentType = DTTextAttachmentTypeImage;
 	}
-	else if ([element.tagName isEqualToString:@"video"])
+	else if ([element.name isEqualToString:@"video"])
 	{
 		attachmentType = DTTextAttachmentTypeVideoURL;
 	}
-	else if ([element.tagName isEqualToString:@"iframe"])
+	else if ([element.name isEqualToString:@"iframe"])
 	{
 		attachmentType = DTTextAttachmentTypeIframe;
 	}
-	else if ([element.tagName isEqualToString:@"object"])
+	else if ([element.name isEqualToString:@"object"])
 	{
 		attachmentType = DTTextAttachmentTypeObject;
 	}
@@ -74,7 +75,7 @@
 	NSURL *baseURL = [options objectForKey:NSBaseURLDocumentOption];
 	
 	// decode URL
-	NSString *src = [element attributeForKey:@"src"];
+	NSString *src = [element.attributes objectForKey:@"src"];
 	
 	NSURL *contentURL = nil;
 	DTImage *decodedImage = nil;
@@ -102,6 +103,11 @@
 		else // normal URL
 		{
 			contentURL = [NSURL URLWithString:src];
+			
+			if(!contentURL){
+				src = [src stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+				contentURL = [NSURL URLWithString:src relativeToURL:baseURL];
+			}
 			
 			if (![contentURL scheme])
 			{
@@ -205,12 +211,12 @@
 // makes a data URL of the image
 - (NSString *)dataURLRepresentation
 {
-	if ((contents==nil) || contentType != DTTextAttachmentTypeImage)
+	if ((_contents==nil) || _contentType != DTTextAttachmentTypeImage)
 	{
 		return nil;
 	}
 	
-	DTImage *image = (DTImage *)contents;
+	DTImage *image = (DTImage *)_contents;
 	NSData *data = [image dataForPNGRepresentation];
 	NSString *encoded = [data base64EncodedString];
 	
@@ -289,9 +295,9 @@
  */
 - (id)contents
 {
-	if (!contents)
+	if (!_contents)
 	{
-		if (contentType == DTTextAttachmentTypeImage && _contentURL && [_contentURL isFileURL])
+		if (_contentType == DTTextAttachmentTypeImage && _contentURL && [_contentURL isFileURL])
 		{
 			DTImage *image = [[DTImage alloc] initWithContentsOfFile:[_contentURL path]];
 			
@@ -299,13 +305,13 @@
 		}
 	}
 	
-	return contents;
+	return _contents;
 }
 
 @synthesize originalSize = _originalSize;
 @synthesize displaySize = _displaySize;
-@synthesize contents;
-@synthesize contentType;
+@synthesize contents = _contents;
+@synthesize contentType = _contentType;
 @synthesize contentURL = _contentURL;
 @synthesize hyperLinkURL = _hyperLinkURL;
 @synthesize attributes = _attributes;

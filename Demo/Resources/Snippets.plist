@@ -12,6 +12,14 @@
 	</dict>
 	<dict>
 		<key>Description</key>
+		<string>This demonstrates the features supported by the iOS 6 attributes.</string>
+		<key>File</key>
+		<string>iOS6.html</string>
+		<key>Title</key>
+		<string>iOS 6 Compatibility Mode</string>
+	</dict>
+	<dict>
+		<key>Description</key>
 		<string>Demonstrates CSS styles that are supported so far.</string>
 		<key>File</key>
 		<string>styles.html</string>
@@ -139,6 +147,14 @@
 		<string>CoreTextIssues.html</string>
 		<key>Title</key>
 		<string>Known CoreText Issues</string>
+	</dict>
+	<dict>
+		<key>Description</key>
+		<string>Font Sizes</string>
+		<key>File</key>
+		<string>FontSizes.html</string>
+		<key>Title</key>
+		<string>Font Sizes</string>
 	</dict>
 	<dict>
 		<key>Description</key>

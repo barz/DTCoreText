@@ -30,7 +30,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	NSRange _requestedStringRange;
 	NSRange _stringRange;
 	
-	NSInteger tag;
+	//NSInteger _tag;
 	
 	DTCoreTextLayoutFrameTextBlockHandler _textBlockHandler;
 }
@@ -109,7 +109,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 
 #pragma mark Building the Lines
 /* 
- Builds the array of lines with the internal typesetter of our framesetter. No need to correct line origins in this case because they are placed correctly in the first place.
+ Builds the array of lines with the internal typesetter of our framesetter. No need to correct line origins in this case because they are placed correctly in the first place. This version supports text boxes.
  */
 - (void)_buildLinesWithTypesetter
 {
@@ -155,7 +155,6 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	paragraphMetrics previousParaMetrics = {0,0,0};
 	
 	lineMetrics currentLineMetrics;
-//	lineMetrics previousLineMetrics;
 	
 	DTTextBlock *currentTextBlock = nil;
 	DTTextBlock *previousTextBlock = nil;
@@ -172,7 +171,8 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		
 		BOOL isAtBeginOfParagraph = (currentParagraphRange.location == lineRange.location);
 		
-		CGFloat offset = 0;
+		CGFloat headIndent = 0;
+		CGFloat tailIndent = 0;
 		
 		// get the paragraph style at this index
 		CTParagraphStyleRef paragraphStyle = (__bridge CTParagraphStyleRef)[_attributedStringFragment attribute:(id)kCTParagraphStyleAttributeName atIndex:lineRange.location effectiveRange:NULL];
@@ -189,7 +189,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		
 		if (isAtBeginOfParagraph)
 		{
-			CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierFirstLineHeadIndent, sizeof(offset), &offset);
+			CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierFirstLineHeadIndent, sizeof(headIndent), &headIndent);
 			
 			// save prev paragraph
 			previousParaMetrics = currentParaMetrics;
@@ -199,15 +199,26 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		}
 		else
 		{
-			CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierHeadIndent, sizeof(offset), &offset);
+			CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierHeadIndent, sizeof(headIndent), &headIndent);
 		}
 		
+		CTParagraphStyleGetValueForSpecifier(paragraphStyle, kCTParagraphStyleSpecifierTailIndent, sizeof(tailIndent), &tailIndent);
+		
 		// add left padding to offset
-		offset += currentTextBlock.padding.left;
+		lineOrigin.x = _frame.origin.x + headIndent + currentTextBlock.padding.left;
 		
-		lineOrigin.x = offset + _frame.origin.x;
+		CGFloat availableSpace;
+		CGFloat offset = headIndent + currentTextBlock.padding.left;
 		
-		CGFloat availableSpace = _frame.size.width - offset - currentTextBlock.padding.right;
+		if (tailIndent<=0)
+		{
+			// negative tail indent is measured from trailing margin (we assume LTR here)
+			availableSpace = _frame.size.width - offset - currentTextBlock.padding.right + tailIndent;
+		}
+		else
+		{
+			availableSpace = tailIndent - offset - currentTextBlock.padding.right;
+		}
 		
 		// find how many characters we get into this line
 		lineRange.length = CTTypesetterSuggestLineBreak(typesetter, lineRange.location, availableSpace);
@@ -683,8 +694,6 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 
 - (void)drawInContext:(CGContextRef)context drawImages:(BOOL)drawImages drawLinks:(BOOL)drawLinks
 {
-	CGContextSaveGState(context);
-	
 	CGRect rect = CGContextGetClipBoundingBox(context);
 	
 	if (!context)
@@ -700,6 +709,8 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	
 	if (_DTCoreTextLayoutFramesShouldDrawDebugFrames)
 	{
+		CGContextSaveGState(context);
+
 		// stroke the frame because the layout frame might be open ended
 		CGContextSaveGState(context);
 		CGFloat dashes[] = {10.0, 2.0};
@@ -715,6 +726,8 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		
 		CGContextSetRGBStrokeColor(context, 1, 0, 0, 0.5);
 		CGContextStrokeRect(context, rect);
+		
+		CGContextRestoreGState(context);
 	}
 	
 	NSArray *visibleLines = [self linesVisibleInRect:rect];
@@ -723,6 +736,12 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	{
 		return;
 	}
+	
+	
+	CGContextSaveGState(context);
+	
+	// need to push the CG context so that the UI* based colors can be set
+	UIGraphicsPushContext(context);
 	
 	// text block handling
 	if (_textBlockHandler)
@@ -811,6 +830,14 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 			
 			CGColorRef backgroundColor = (__bridge CGColorRef)[oneRun.attributes objectForKey:DTBackgroundColorAttribute];
 			
+			// can also be iOS 6 attribute
+#if __IPHONE_OS_VERSION_MAX_ALLOWED > __IPHONE_5_1
+			if (!backgroundColor && ___useiOS6Attributes)
+			{
+				UIColor *uiColor = [oneRun.attributes objectForKey:NSBackgroundColorAttributeName];
+				backgroundColor = uiColor.CGColor;
+			}
+#endif
 			
 			NSDictionary *ruleStyle = [oneRun.attributes objectForKey:DTHorizontalRuleStyleAttribute];
 			
@@ -1025,6 +1052,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		CFRelease(_textFrame);
 	}
 	
+	UIGraphicsPopContext();
 	CGContextRestoreGState(context);
 }
 
