@@ -1774,7 +1774,7 @@
 		29B97313FDCFA39411CA2CEA /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0450;
+				LastUpgradeCheck = 0460;
 				ORGANIZATIONNAME = Drobnik.com;
 			};
 			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "DTCoreText" */;
@@ -2679,7 +2679,7 @@
 					"-ObjC",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx;
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/Core/Externals\"/** \"$(SRCROOT)/Core/Source\"";
 				WRAPPER_EXTENSION = octest;
 			};
@@ -2710,7 +2710,7 @@
 					"-ObjC",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx;
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/Core/Externals\"/** \"$(SRCROOT)/Core/Source\"";
 				WRAPPER_EXTENSION = octest;
 			};
@@ -2837,7 +2837,7 @@
 				INFOPLIST_FILE = "Core/DTCoreText-Info.plist";
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = DTCoreText;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx;
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/Core/Source\" \"$(SRCROOT)/Core/Externals\"/**";
 				WRAPPER_EXTENSION = framework;
 			};
@@ -2870,7 +2870,7 @@
 				);
 				INFOPLIST_FILE = "Core/DTCoreText-Info.plist";
 				PRODUCT_NAME = DTCoreText;
-				SDKROOT = macosx10.7;
+				SDKROOT = macosx;
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/Core/Source\" \"$(SRCROOT)/Core/Externals\"/**";
 				WRAPPER_EXTENSION = framework;
 			};
