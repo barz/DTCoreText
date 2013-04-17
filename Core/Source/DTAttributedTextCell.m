@@ -55,7 +55,45 @@
 	
 		// after the first call here the content view size is correct
 		CGRect frame = CGRectMake(0, 0, self.contentView.bounds.size.width, neededContentHeight);
-		self.attributedTextContextView.frame = frame;
+		// only change frame if width has changed to avoid extra layouting
+		if (_attributedTextContextView.frame.size.width != frame.size.width)
+		{
+			_attributedTextContextView.frame = frame;
+			
+			// Hsoi 08-Jan-2013 - To deal with a dynamic size flow issue: https://github.com/Cocoanetics/DTCoreText/issues/102
+			//
+			// The DTCoreText demo has it such that the -[UITableViewController tableView:heightForRowAtIndexPath:] implementation
+			// calls -[DTAttributedTextCell requiredRowHeightInTableView:] to get the height. Unfortunately, that number often
+			// winds up being different than the _attributedTextContextView.frame that gets set above! That's not good.
+			// After some looking at the #102 and then also https://github.com/Cocoanetics/DTCoreText/issues/114 it seems that
+			// there's just issues with the OS and how things cooperate and work. *sigh*
+			//
+			// So after thinking about it and trying some other approaches towards solving this, I have what appears
+			// to be a workaround.
+			//
+			// The key is that the cell's height needs to be the same as the HTML we're actually rendering, thus the
+			// _attributedTextContextView. Thus, -[UITableViewController tableView:heightForRowAtIndexPath:] should
+			// return the value of cell.attributedTextContextView.frame.size.height; Simple and proper, right?
+			//
+			// The trick tho is getting the proper height. Well, it's HERE that this happens, but we need some way
+			// to kick the UITableView to then not just draw, but to know to refetch the cell heights. So while
+			// this isn't 100% non-dirty, it works to kick it by getting the parent view, which happens to
+			// be a UITableView, and then doing the -beginUpdates/-endUpdates bracket. And yes, it will reflow
+			// things to work. Huzzah!
+			//
+			//
+			// So note, to make this work, the -[UITableViewController tableView:heightForRowAtIndexPath:] needs to
+			// return cell.attributedTextContextView.frame.size.height.
+			
+#if DEBUG
+			if ([self superview] != nil) {
+				NSParameterAssert([[self superview] isKindOfClass:[UITableView class]]);
+			}
+#endif
+			UITableView*	parentTable = (UITableView*)[self superview];
+			[parentTable beginUpdates];
+			[parentTable endUpdates];
+		}
 	}
 }
 
