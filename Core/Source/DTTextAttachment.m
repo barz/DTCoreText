@@ -1,6 +1,6 @@
 //
 //  DTTextAttachment.m
-//  CoreTextExtensions
+//  DTCoreText
 //
 //  Created by Oliver on 14.01.11.
 //  Copyright 2011 Drobnik.com. All rights reserved.
@@ -8,7 +8,17 @@
 
 #import "DTTextAttachment.h"
 #import "DTCoreText.h"
-#import "DTFoundation.h"
+#import "DTUtils.h"
+
+#import "DTBase64Coding.h"
+
+static NSCache *imageCache = nil;
+
+@interface DTTextAttachment ()
+
++ (NSCache *)sharedImageCache;
+
+@end
 
 @implementation DTTextAttachment
 {
@@ -21,11 +31,23 @@
     DTTextAttachmentType _contentType;
 	
 	NSURL *_contentURL;
+	
 	NSURL *_hyperLinkURL;
+	NSString *_hyperLinkGUID;
 	
 	CGFloat _fontLeading;
 	CGFloat _fontAscent;
 	CGFloat _fontDescent;
+}
+
++ (NSCache *)sharedImageCache {
+  if (imageCache) return imageCache;
+
+  static dispatch_once_t onceToken; // lock
+  dispatch_once(&onceToken, ^{ // this block run only once
+		imageCache = [[NSCache alloc] init];
+  });
+  return imageCache;
 }
 
 + (DTTextAttachment *)textAttachmentWithElement:(DTHTMLElement *)element options:(NSDictionary *)options
@@ -82,16 +104,33 @@
 	
 	
 	// decode content URL
-	if (src != nil) { // guard against img with no src
+	if ([src length]) // guard against img with no src
+	{ 
 		if ([src hasPrefix:@"data:"])
 		{
-			NSRange range = [src rangeOfString:@"base64,"];
+			NSString *cleanStr = [[src componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""];
 			
-			if (range.length)
+			NSURL *dataURL = [NSURL URLWithString:cleanStr];
+			
+			// try native decoding first
+			NSData *decodedData = [NSData dataWithContentsOfURL:dataURL];
+			
+			// try own base64 decoding
+			if (!decodedData)
 			{
-				NSString *encodedData = [src substringFromIndex:range.location + range.length];
-				NSData *decodedData = [NSData dataFromBase64String:encodedData];
+				NSRange range = [cleanStr rangeOfString:@"base64,"];
 				
+				if (range.length)
+				{
+					NSString *encodedData = [cleanStr substringFromIndex:range.location + range.length];
+					
+					decodedData = [DTBase64Coding dataByDecodingString:encodedData];
+				}
+			}
+			
+			// if we have image data, get the default display size
+			if (decodedData)
+			{
 				decodedImage = [[DTImage alloc] initWithData:decodedData];
 				
 				if (!displaySize.width || !displaySize.height)
@@ -104,7 +143,8 @@
 		{
 			contentURL = [NSURL URLWithString:src];
 			
-			if(!contentURL){
+			if(!contentURL)
+			{
 				src = [src stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
 				contentURL = [NSURL URLWithString:src relativeToURL:baseURL];
 			}
@@ -119,10 +159,25 @@
 				else
 				{
 					// file in app bundle
-					NSString *path = [[NSBundle mainBundle] pathForResource:src ofType:nil];
-					if (path) {
+					NSBundle *bundle = [NSBundle mainBundle];
+					NSString *path = [bundle pathForResource:src ofType:nil];
+					
+					if (path)
+					{
 						// Prevent a crash if path turns up nil.
 						contentURL = [NSURL fileURLWithPath:path];   
+					}
+					else
+					{
+						// might also be in a different bundle, e.g. when unit testing
+						bundle = [NSBundle bundleForClass:[DTTextAttachment class]];
+						
+						path = [bundle pathForResource:src ofType:nil];
+						if (path)
+						{
+							// Prevent a crash if path turns up nil.
+							contentURL = [NSURL fileURLWithPath:path];
+						}
 					}
 				}
 			}
@@ -137,42 +192,34 @@
 		// if it's a local file we need to inspect it to get it's dimensions
 		if (!displaySize.width || !displaySize.height)
 		{
-			// inspect local file
-			if ([contentURL isFileURL])
+			// let's check if we have a cached image already then we can inspect that
+			DTImage *image = [[DTTextAttachment sharedImageCache] objectForKey:[contentURL absoluteString]];
+			
+			if (!image)
 			{
-				DTImage *image = [[DTImage alloc] initWithContentsOfFile:[contentURL path]];
+				// only local files we can directly load without punishment
+				if ([contentURL isFileURL])
+				{
+					image = [[DTImage alloc] initWithContentsOfFile:[contentURL path]];
+				}
+				
+				// cache that for later
+				if (image)
+				{
+					[[DTTextAttachment sharedImageCache] setObject:image forKey:[contentURL absoluteString]];
+				}
+			}
+			
+			// we have an image, so we can set the original size and default display size
+			if (image)
+			{
 				originalSize = image.size;
 				
-				// width and/or height missing
-				if (displaySize.width==0 && displaySize.height==0)
-				{
-					displaySize = originalSize;
-				}
-				else if (!displaySize.width && displaySize.height)
-				{
-					CGFloat factor = image.size.height / displaySize.height;
-					displaySize.width = roundf(image.size.width / factor);
-				}
-				else if (displaySize.width>0 && displaySize.height==0)
-				{
-					CGFloat factor = image.size.width / displaySize.width;
-					displaySize.height = roundf(image.size.height / factor);
-				}
+				// initial display size matches original
+				displaySize = originalSize;
 			}
-			else
-			{
-				// remote image, we have to relayout once this size is known
-				displaySize = CGSizeMake(1, 1); // one pixel so that loading is triggered
-			}
-		}
-		
-		// we copy the link because we might need for it making the custom view
-		if (element.link)
-		{
-			attachment.hyperLinkURL = element.link;
 		}
 	}
-
 	
 	// if you have no display size we assume original size
 	if (CGSizeEqualToSize(displaySize, CGSizeZero))
@@ -183,17 +230,11 @@
 	// adjust the display size if there is a restriction and it's too large
 	CGSize adjustedSize = displaySize;
 	
-	if (maxImageSize.width>0 && maxImageSize.height>0)
+	if (!CGSizeEqualToSize(maxImageSize, CGSizeZero))
 	{
 		if (maxImageSize.width < displaySize.width || maxImageSize.height < displaySize.height)
 		{
-			adjustedSize = sizeThatFitsKeepingAspectRatio2(displaySize, maxImageSize);
-		}
-		
-		// still no display size? use max size
-		if (CGSizeEqualToSize(displaySize, CGSizeZero))
-		{
-			adjustedSize = maxImageSize;
+			adjustedSize = sizeThatFitsKeepingAspectRatio(displaySize, maxImageSize);
 		}
 	}
 		
@@ -218,7 +259,7 @@
 	
 	DTImage *image = (DTImage *)_contents;
 	NSData *data = [image dataForPNGRepresentation];
-	NSString *encoded = [data base64EncodedString];
+	NSString *encoded = [DTBase64Coding stringByEncodingData:data];
 	
 	return [@"data:image/png;base64," stringByAppendingString:encoded];
 }
@@ -289,7 +330,41 @@
 	self.displaySize = _originalSize;
 }
 
-/** 
+- (void)setDisplaySize:(CGSize)displaySize withMaxDisplaySize:(CGSize)maxDisplaySize
+{
+	if (_originalSize.width && _originalSize.height)
+	{
+		// width and/or height missing
+		if (displaySize.width==0 && displaySize.height==0)
+		{
+			displaySize = _originalSize;
+		}
+		else if (!displaySize.width && displaySize.height)
+		{
+			// width missing, calculate it
+			CGFloat factor = _originalSize.height / displaySize.height;
+			displaySize.width = roundf(_originalSize.width / factor);
+		}
+		else if (displaySize.width>0 && displaySize.height==0)
+		{
+			// height missing, calculate it
+			CGFloat factor = _originalSize.width / displaySize.width;
+			displaySize.height = roundf(_originalSize.height / factor);
+		}
+	}
+	
+	if (maxDisplaySize.width>0 && maxDisplaySize.height>0)
+	{
+		if (maxDisplaySize.width < displaySize.width || maxDisplaySize.height < displaySize.height)
+		{
+			displaySize = sizeThatFitsKeepingAspectRatio(displaySize, maxDisplaySize);
+		}
+	}
+	
+	_displaySize = displaySize;
+}
+
+/**
  Accessor for the contents instance variable. If the content type is DTTextAttachmentTypeImage this returns a DTImage instance of the contents.
  @returns Contents. If it is an image, a DTImage instance is returned. Otherwise it is returned as is. 
  */
@@ -297,10 +372,22 @@
 {
 	if (!_contents)
 	{
-		if (_contentType == DTTextAttachmentTypeImage && _contentURL && [_contentURL isFileURL])
+		if (_contentType == DTTextAttachmentTypeImage && _contentURL)
 		{
-			DTImage *image = [[DTImage alloc] initWithContentsOfFile:[_contentURL path]];
+			DTImage *image = [[DTTextAttachment sharedImageCache] objectForKey:[_contentURL absoluteString]];
 			
+			// only local files can be loaded into cache
+			if (!image && [_contentURL isFileURL])
+			{
+				image = [[DTImage alloc] initWithContentsOfFile:[_contentURL path]];
+				
+				// cache it
+				if (image)
+				{
+					[[DTTextAttachment sharedImageCache] setObject:image forKey:[_contentURL absoluteString]];
+				}
+			}
+
 			return image;
 		}
 	}
@@ -316,6 +403,7 @@
 @synthesize hyperLinkURL = _hyperLinkURL;
 @synthesize attributes = _attributes;
 @synthesize verticalAlignment = _verticalAlignment;
-@synthesize hyperLinkGUID;
+@synthesize hyperLinkGUID = hyperLinkGUID;
+@synthesize childNodes = _childNodes;
 
 @end

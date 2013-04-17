@@ -1,6 +1,6 @@
 //
 //  DemoTextViewController.m
-//  CoreTextExtensions
+//  DTCoreText
 //
 //  Created by Oliver Drobnik on 1/9/11.
 //  Copyright 2011 Drobnik.com. All rights reserved.
@@ -11,6 +11,7 @@
 #import <MediaPlayer/MediaPlayer.h>
 
 #import "DTVersion.h"
+#import "DTTiledLayerWithoutFade.h"
 
 @interface DemoTextViewController ()
 - (void)_segmentedControlChanged:(id)sender;
@@ -108,9 +109,18 @@
 	[self.view addSubview:_htmlView];
 
 	// Create text view
-	[DTAttributedTextContentView setLayerClass:[CATiledLayer class]];
+	[DTAttributedTextContentView setLayerClass:[DTTiledLayerWithoutFade class]];
 	_textView = [[DTAttributedTextView alloc] initWithFrame:frame];
-	_textView.textDelegate = self;
+	
+	// we draw images and links via subviews provided by delegate methods
+	_textView.shouldDrawImages = NO;
+	_textView.shouldDrawLinks = NO;
+	_textView.textDelegate = self; // delegate for custom sub views
+	
+	// set an inset. Since the bottom is below a toolbar inset by 44px
+	[_textView setScrollIndicatorInsets:UIEdgeInsetsMake(0, 0, 44, 0)];
+	_textView.contentInset = UIEdgeInsetsMake(10, 10, 54, 10);
+
 	_textView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 	[self.view addSubview:_textView];
 	
@@ -144,29 +154,19 @@
 	};
 	
 	NSMutableDictionary *options = [NSMutableDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithFloat:1.0], NSTextSizeMultiplierDocumentOption, [NSValue valueWithCGSize:maxImageSize], DTMaxImageSize,
-							 @"Times New Roman", DTDefaultFontFamily,  @"purple", DTDefaultLinkColor, callBackBlock, DTWillFlushBlockCallBack, nil];
+							 @"Times New Roman", DTDefaultFontFamily,  @"purple", DTDefaultLinkColor, @"red", DTDefaultLinkHighlightColor, callBackBlock, DTWillFlushBlockCallBack, nil];
 	
 	if (useiOS6Attributes)
 	{
 		[options setObject:[NSNumber numberWithBool:YES] forKey:DTUseiOS6Attributes];
 	}
 	
+	[options setObject:[NSURL fileURLWithPath:readmePath] forKey:NSBaseURLDocumentOption];
+	
 	NSAttributedString *string = [[NSAttributedString alloc] initWithHTMLData:data options:options documentAttributes:NULL];
 	
 	return string;
 }
-
-
-- (void)viewDidLoad
-{
-	[super viewDidLoad];
-	
-	// Display string
-	_textView.contentView.edgeInsets = UIEdgeInsetsMake(10, 10, 10, 10);
-	_textView.contentView.shouldDrawLinks = NO; // we draw them in DTLinkButton
-	_textView.attributedString = [self _attributedStringForSnippetUsingiOS6Attributes:NO];
-}
-
 
 - (void)viewWillAppear:(BOOL)animated
 {
@@ -174,10 +174,13 @@
 	
 	CGRect bounds = self.view.bounds;
 	_textView.frame = bounds;
+
+	// Display string
+	_textView.shouldDrawLinks = NO; // we draw them in DTLinkButton
+	_textView.attributedString = [self _attributedStringForSnippetUsingiOS6Attributes:NO];
 	
 	[self _segmentedControlChanged:nil];
-	[_textView setContentInset:UIEdgeInsetsMake(0, 0, 44, 0)];
-	[_textView setScrollIndicatorInsets:UIEdgeInsetsMake(0, 0, 44, 0)];
+	
 	[self.navigationController setToolbarHidden:NO animated:YES];
 }
 
@@ -308,20 +311,13 @@
 	button.minimumHitSize = CGSizeMake(25, 25); // adjusts it's bounds so that button is always large enough
 	button.GUID = identifier;
 	
-	// we draw the contents ourselves
-	button.attributedString = string;
+	// get image with normal link text
+	UIImage *normalImage = [attributedTextContentView contentImageWithBounds:frame options:DTCoreTextLayoutFrameDrawingDefault];
+	[button setImage:normalImage forState:UIControlStateNormal];
 	
-	// make a version with different text color
-	NSMutableAttributedString *highlightedString = [string mutableCopy];
-	
-	NSRange range = NSMakeRange(0, highlightedString.length);
-	
-	NSDictionary *highlightedAttributes = [NSDictionary dictionaryWithObject:(__bridge id)[UIColor redColor].CGColor forKey:(id)kCTForegroundColorAttributeName];
-	
-	
-	[highlightedString addAttributes:highlightedAttributes range:range];
-	
-	button.highlightedAttributedString = highlightedString;
+	// get image for highlighted link text
+	UIImage *highlightImage = [attributedTextContentView contentImageWithBounds:frame options:DTCoreTextLayoutFrameDrawingDrawLinksHighlighted];
+	[button setImage:highlightImage forState:UIControlStateHighlighted];
 	
 	// use normal push action for opening URL
 	[button addTarget:self action:@selector(linkPushed:) forControlEvents:UIControlEventTouchUpInside];
@@ -427,7 +423,19 @@
 			// NOTE: this is a hack, you probably want to use your own image view and touch handling
 			// also, this treats an image with a hyperlink by itself because we don't have the GUID of the link parts
 			imageView.userInteractionEnabled = YES;
-			DTLinkButton *button = (DTLinkButton *)[self attributedTextContentView:attributedTextContentView viewForLink:attachment.hyperLinkURL identifier:attachment.hyperLinkGUID frame:imageView.bounds];
+			
+			DTLinkButton *button = [[DTLinkButton alloc] initWithFrame:imageView.bounds];
+			button.URL = attachment.hyperLinkURL;
+			button.minimumHitSize = CGSizeMake(25, 25); // adjusts it's bounds so that button is always large enough
+			button.GUID = attachment.hyperLinkGUID;
+			
+			// use normal push action for opening URL
+			[button addTarget:self action:@selector(linkPushed:) forControlEvents:UIControlEventTouchUpInside];
+			
+			// demonstrate combination with long press
+			UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(linkLongPressed:)];
+			[button addGestureRecognizer:longPress];
+			
 			[imageView addSubview:button];
 		}
 		
@@ -435,7 +443,6 @@
 	}
 	else if (attachment.contentType == DTTextAttachmentTypeIframe)
 	{
-		frame.origin.x += 50;
 		DTWebVideoView *videoView = [[DTWebVideoView alloc] initWithFrame:frame];
 		videoView.attachment = attachment;
 		
@@ -459,7 +466,7 @@
 
 - (BOOL)attributedTextContentView:(DTAttributedTextContentView *)attributedTextContentView shouldDrawBackgroundForTextBlock:(DTTextBlock *)textBlock frame:(CGRect)frame context:(CGContextRef)context forLayoutFrame:(DTCoreTextLayoutFrame *)layoutFrame
 {
-	UIBezierPath *roundedRect = [UIBezierPath bezierPathWithRoundedRect:frame cornerRadius:10];
+	UIBezierPath *roundedRect = [UIBezierPath bezierPathWithRoundedRect:CGRectInset(frame,1,1) cornerRadius:10];
 
 	CGColorRef color = [textBlock.backgroundColor CGColor];
 	if (color)
@@ -530,9 +537,8 @@
 
 - (void)debugButton:(UIBarButtonItem *)sender
 {
-	_textView.contentView.drawDebugFrames = !_textView.contentView.drawDebugFrames;
-	[DTCoreTextLayoutFrame setShouldDrawDebugFrames:_textView.contentView.drawDebugFrames];
-	[self.view setNeedsDisplay];
+	[DTCoreTextLayoutFrame setShouldDrawDebugFrames:![DTCoreTextLayoutFrame shouldDrawDebugFrames]];
+	[_textView.attributedTextContentView setNeedsDisplay];
 }
 
 #pragma mark DTLazyImageViewDelegate
@@ -544,7 +550,7 @@
 	NSPredicate *pred = [NSPredicate predicateWithFormat:@"contentURL == %@", url];
 	
 	// update all attachments that matchin this URL (possibly multiple images with same size)
-	for (DTTextAttachment *oneAttachment in [_textView.contentView.layoutFrame textAttachmentsWithPredicate:pred])
+	for (DTTextAttachment *oneAttachment in [_textView.attributedTextContentView.layoutFrame textAttachmentsWithPredicate:pred])
 	{
 		oneAttachment.originalSize = imageSize;
 		
@@ -554,9 +560,8 @@
 		}
 	}
 	
-	// redo layout
-	// here we're layouting the entire string, might be more efficient to only relayout the paragraphs that contain these attachments
-	[_textView.contentView relayoutText];
+	// layout might have changed due to image sizes
+	[_textView relayoutText];
 }
 
 #pragma mark Properties

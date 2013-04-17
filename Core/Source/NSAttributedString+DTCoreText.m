@@ -183,7 +183,12 @@
 
 - (NSRange)rangeOfTextList:(DTCSSListStyle *)list atIndex:(NSUInteger)location
 {
-	return [self _rangeOfObject:list inArrayBehindAttribute:DTTextListsAttribute atIndex:location];
+	NSRange listRange = [self _rangeOfObject:list inArrayBehindAttribute:DTTextListsAttribute atIndex:location];
+	
+	// extend list range to full paragraphs to be safe
+	listRange = [self.string rangeOfParagraphsContainingRange:listRange parBegIndex:NULL parEndIndex:NULL];
+	
+	return listRange;
 }
 
 - (NSRange)rangeOfTextBlock:(DTTextBlock *)textBlock atIndex:(NSUInteger)location
@@ -217,6 +222,15 @@
 	return [writer HTMLString];
 }
 
+- (NSString *)htmlFragment
+{
+	// create a writer
+	DTHTMLWriter *writer = [[DTHTMLWriter alloc] initWithAttributedString:self];
+	
+	// return it's output
+	return [writer HTMLFragment];
+}
+
 - (NSString *)plainTextString
 {
 	NSString *tmpString = [self string];
@@ -241,7 +255,6 @@
 		paragraphStyle.tabStops = nil;
 		
 		paragraphStyle.headIndent = listIndent;
-		paragraphStyle.paragraphSpacing = 0;
 		
 		if (listStyle.type != DTCSSListStyleTypeNone)
 		{
@@ -251,7 +264,7 @@
 		}
 		
 		// second tab is for the beginning of first line after bullet
-		[paragraphStyle addTabStopAtPosition:paragraphStyle.headIndent alignment:	kCTLeftTextAlignment];	
+		[paragraphStyle addTabStopAtPosition:paragraphStyle.headIndent alignment:kCTLeftTextAlignment];	
 	}
 	
 	if (font)
@@ -336,7 +349,7 @@
 	}
 	
 	// add a marker so that we know that this is a field/prefix
-	[newAttributes setObject:@"{listprefix}" forKey:DTFieldAttribute];
+	[newAttributes setObject:DTListPrefixField forKey:DTFieldAttribute];
 	
 	NSString *prefix = [listStyle prefixWithCounter:listCounter];
 	
