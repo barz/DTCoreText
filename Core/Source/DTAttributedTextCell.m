@@ -56,7 +56,8 @@
 		// after the first call here the content view size is correct
 		CGRect frame = CGRectMake(0, 0, self.contentView.bounds.size.width, neededContentHeight);
 		// only change frame if width has changed to avoid extra layouting
-		if (_attributedTextContextView.frame.size.width != frame.size.width)
+		// Hsoi 2013-05-30 - or if the current height is less than what we need
+		if (_attributedTextContextView.frame.size.width != frame.size.width || _attributedTextContextView.frame.size.height < neededContentHeight)
 		{
 			_attributedTextContextView.frame = frame;
 			
