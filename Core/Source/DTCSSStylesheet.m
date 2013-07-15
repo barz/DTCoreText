@@ -30,12 +30,15 @@ extern unsigned int default_css_len;
 + (DTCSSStylesheet *)defaultStyleSheet
 {
 	static DTCSSStylesheet *defaultDTCSSStylesheet = nil;
-	if (defaultDTCSSStylesheet != nil) {
+	if (defaultDTCSSStylesheet)
+	{
 		return defaultDTCSSStylesheet;
 	}
 	
-	@synchronized(self) {
-		if (defaultDTCSSStylesheet == nil) {
+	@synchronized(self)
+	{
+		if (!defaultDTCSSStylesheet)
+		{
 			// get the data from the external symbol
 			NSData *data = [NSData dataWithBytes:default_css length:default_css_len];
 			NSString *cssString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
@@ -157,7 +160,6 @@ extern unsigned int default_css_len;
 	{
 		NSString *fontStyle = @"normal";
 		NSArray *validFontStyles = [NSArray arrayWithObjects:@"italic", @"oblique", nil];
-		BOOL fontStyleSet = NO;
 
 		NSString *fontVariant = @"normal";
 		NSArray *validFontVariants = [NSArray arrayWithObjects:@"small-caps", nil];
@@ -174,7 +176,6 @@ extern unsigned int default_css_len;
 		NSArray *suffixesToIgnore = [NSArray arrayWithObjects:@"caption", @"icon", @"menu", @"message-box", @"small-caption", @"status-bar", @"inherit", nil];
 		
 		NSString *lineHeight = @"normal";
-		BOOL lineHeightSet = NO;
 		
 		NSMutableString *fontFamily = [NSMutableString string];
 		
@@ -201,7 +202,6 @@ extern unsigned int default_css_len;
 				fontSizeSet = YES;
 				
 				lineHeight = [oneComponent substringFromIndex:slashIndex+1];
-				lineHeightSet = YES;
 				
 				continue;
 			}
@@ -237,7 +237,6 @@ extern unsigned int default_css_len;
 				if (!fontWeightSet && [validFontStyles containsObject:oneComponent])
 				{
 					fontStyle = oneComponent;
-					fontStyleSet = YES;
 				}
 				else if (!fontVariantSet && [validFontVariants containsObject:oneComponent])
 				{
@@ -491,8 +490,8 @@ extern unsigned int default_css_len;
 	
 	NSUInteger length = [css length];
 	
-	for (NSUInteger i = 0; i < length; i++) {
-		
+	for (NSUInteger i = 0; i < length; i++)
+	{
 		unichar c = [css characterAtIndex:i];
 		
 		if (c == '/')
@@ -535,8 +534,8 @@ extern unsigned int default_css_len;
 		}
 		
 		// An opening brace! It could be the start of a new rule, or it could be a nested brace.
-		if (c == '{') {
-			
+		if (c == '{')
+		{
 			// If we start a new rule...
 			
 			if (braceLevel == 0) 
@@ -602,7 +601,7 @@ extern unsigned int default_css_len;
 
 #pragma mark Accessing Style Information
 
-- (NSDictionary *)mergedStyleDictionaryForElement:(DTHTMLElement *)element
+- (NSDictionary *)mergedStyleDictionaryForElement:(DTHTMLElement *)element matchedSelectors:(NSSet **)matchedSelectors
 {
 	// We are going to combine all the relevant styles for this tag.
 	// (Note that when styles are applied, the later styles take precedence,
@@ -622,6 +621,13 @@ extern unsigned int default_css_len;
 	NSString *classString = [element.attributes objectForKey:@"class"];
 	NSArray *classes = [classString componentsSeparatedByString:@" "];
 	
+	NSMutableSet *tmpMatchedSelectors;
+	
+	if (matchedSelectors)
+	{
+		tmpMatchedSelectors = [[NSMutableSet alloc] init];
+	}
+	
 	for (NSString *class in classes) 
 	{
 		NSString *classRule = [NSString stringWithFormat:@".%@", class];
@@ -633,11 +639,14 @@ extern unsigned int default_css_len;
 		if (byClass) 
 		{
 			[tmpDict addEntriesFromDictionary:byClass];
+			
+			[tmpMatchedSelectors addObject:classRule];
 		}
 		
 		if (byClassAndName) 
 		{
 			[tmpDict addEntriesFromDictionary:byClassAndName];
+			[tmpMatchedSelectors addObject:classAndTagRule];
 		}
 	}
 	
@@ -648,6 +657,7 @@ extern unsigned int default_css_len;
 	if (byID)
 	{
 		[tmpDict addEntriesFromDictionary:byID];
+		[tmpMatchedSelectors addObject:idRule];
 	}
 	
 	// Get tag's local style attribute
@@ -665,6 +675,11 @@ extern unsigned int default_css_len;
 	
 	if ([tmpDict count])
 	{
+		if (matchedSelectors && [tmpMatchedSelectors count])
+		{
+			*matchedSelectors = [tmpMatchedSelectors copy];
+		}
+		
 		return tmpDict;
 	}
 	else
