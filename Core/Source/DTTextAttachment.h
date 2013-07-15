@@ -167,7 +167,7 @@ typedef enum
  @param class The class to instantiate in textAttachmentWithElement:options: when encountering a tag with this name
  @param tagName The tag name to use this class for
  */
-+ (void)registerClass:(Class)class forTagName:(NSString *)tagName;
++ (void)registerClass:(Class)aClass forTagName:(NSString *)tagName;
 
 /**
  The class to use for a tag name
