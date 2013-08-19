@@ -85,13 +85,18 @@
 			//
 			// So note, to make this work, the -[UITableViewController tableView:heightForRowAtIndexPath:] needs to
 			// return cell.attributedTextContextView.frame.size.height.
+			//
+			// Hsoi 2013-08-19 - iOS 7 seems to change the hierarchy a bit, so we'll have to walk up the superviews.
 			
-#if DEBUG
-			if ([self superview] != nil) {
-				NSParameterAssert([[self superview] isKindOfClass:[UITableView class]]);
+			UITableView*		parentTable = nil;
+			UIView*			theSuperview = self;
+			while ((theSuperview = [theSuperview superview])) {
+				if ([theSuperview isKindOfClass:[UITableView class]]) {
+					parentTable = (UITableView*)theSuperview;
+					break;
+				}
 			}
-#endif
-			UITableView*	parentTable = (UITableView*)[self superview];
+			
 			[parentTable beginUpdates];
 			[parentTable endUpdates];
 		}
