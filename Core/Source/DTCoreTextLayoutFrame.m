@@ -942,6 +942,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	// search for the end blocks for this range
 	BOOL foundEndBlocks = NO;
 	
+	// set index on last character before end of searched range
 	index = NSMaxRange(range)-1;
 	
 	do
@@ -953,12 +954,15 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 		}
 		
 		NSRange effectiveRangeOfBlocksArray;
-		NSArray *textBlocks = [_attributedStringFragment attribute:DTTextBlocksAttribute atIndex:index-1 effectiveRange:&effectiveRangeOfBlocksArray];
+		NSArray *textBlocks = [_attributedStringFragment attribute:DTTextBlocksAttribute atIndex:index effectiveRange:&effectiveRangeOfBlocksArray];
 		
-		// skip a range of empty blocks at start
+		// search of backwards from end of range until we find blocks
 		if (!textBlocks)
 		{
-			index = effectiveRangeOfBlocksArray.location;
+			// set index on last character before this region without text blocks
+			index = effectiveRangeOfBlocksArray.location-1;
+			NSAssert(index>=effectiveRange.location, @"we should never need to search before the beginning text blocks");
+			
 			continue;
 		}
 		
@@ -990,7 +994,7 @@ static BOOL _DTCoreTextLayoutFramesShouldDrawDebugFrames = NO;
 	while (!foundEndBlocks);
 	
 	
-	if (foundStartBlocks&&foundEndBlocks)
+	if (effectiveRange.length)
 	{
 		return effectiveRange;
 	}

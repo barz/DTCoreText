@@ -279,6 +279,7 @@
 	_defaultTag.fontDescriptor = _defaultFontDescriptor;
 	_defaultTag.paragraphStyle = _defaultParagraphStyle;
 	_defaultTag.textScale = _textScale;
+	_defaultTag.currentTextSize = _defaultFontDescriptor.pointSize;
 	
 #if DTCORETEXT_FIX_14684188
 	// workaround, only necessary while rdar://14684188 is not fixed
@@ -425,35 +426,6 @@
 		}
 		
 		[textLists addObject:newListStyle];
-		
-		// workaround for different styles on stacked lists
-		if ([textLists count]>1) // not necessary for first
-		{
-			// find out if each list is ordered or unordered
-			NSMutableArray *tmpArray = [NSMutableArray array];
-			for (DTCSSListStyle *oneList in textLists)
-			{
-				if ([oneList isOrdered])
-				{
-					[tmpArray addObject:@"ol"];
-				}
-				else
-				{
-					[tmpArray addObject:@"ul"];
-				}
-			}
-			
-			// build a CSS selector
-			NSString *selector = [tmpArray componentsJoinedByString:@" "];
-			
-			// find style
-			NSDictionary *style = [[_globalStyleSheet styles] objectForKey:selector];
-			
-			if (style)
-			{
-				[newListStyle updateFromStyleDictionary:style];
-			}
-		}
 		
 		_currentTag.paragraphStyle.textLists = textLists;
 	};
@@ -762,87 +734,88 @@
 {
 
 	dispatch_group_async(_treeBuildingGroup, _treeBuildingQueue, ^{
-		
-		if (_ignoreParseEvents)
-		{
-			return;
-		}
-		
-		// output the element if it is direct descendant of body tag, or close of body in case there are direct text nodes
-		
-		// find block to execute for this tag if any
-		void (^tagBlock)(void) = [_tagEndHandlers objectForKey:elementName];
-		
-		if (tagBlock)
-		{
-			tagBlock();
-		}
-		
-		if (_currentTag.displayStyle != DTHTMLElementDisplayStyleNone)
-		{
-			if (_currentTag == _bodyElement || _currentTag.parentElement == _bodyElement)
+		@autoreleasepool {
+			if (_ignoreParseEvents)
 			{
-				DTHTMLElement *theTag = _currentTag;
-				
-				dispatch_group_async(_stringAssemblyGroup, _stringAssemblyQueue, ^{
-					// has children that have not been output yet
-					if ([theTag needsOutput])
-					{
-						// caller gets opportunity to modify tag before it is written
-						if (_willFlushCallback)
+				return;
+			}
+			
+			// output the element if it is direct descendant of body tag, or close of body in case there are direct text nodes
+			
+			// find block to execute for this tag if any
+			void (^tagBlock)(void) = [_tagEndHandlers objectForKey:elementName];
+			
+			if (tagBlock)
+			{
+				tagBlock();
+			}
+			
+			if (_currentTag.displayStyle != DTHTMLElementDisplayStyleNone)
+			{
+				if (_currentTag == _bodyElement || _currentTag.parentElement == _bodyElement)
+				{
+					DTHTMLElement *theTag = _currentTag;
+					
+					dispatch_group_async(_stringAssemblyGroup, _stringAssemblyQueue, ^{
+						// has children that have not been output yet
+						if ([theTag needsOutput])
 						{
-							_willFlushCallback(theTag);
-						}
-						
-						NSAttributedString *nodeString = [theTag attributedString];
-						
-						if (nodeString)
-						{
-							// if this is a block element then we need a paragraph break before it
-							if (theTag.displayStyle != DTHTMLElementDisplayStyleInline)
+							// caller gets opportunity to modify tag before it is written
+							if (_willFlushCallback)
 							{
-								if ([_tmpString length] && ![[_tmpString string] hasSuffix:@"\n"])
+								_willFlushCallback(theTag);
+							}
+							
+							NSAttributedString *nodeString = [theTag attributedString];
+							
+							if (nodeString)
+							{
+								// if this is a block element then we need a paragraph break before it
+								if (theTag.displayStyle != DTHTMLElementDisplayStyleInline)
 								{
-									// trim off whitespace
-									while ([[_tmpString string] hasSuffixCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]])
+									if ([_tmpString length] && ![[_tmpString string] hasSuffix:@"\n"])
 									{
-										[_tmpString deleteCharactersInRange:NSMakeRange([_tmpString length]-1, 1)];
+										// trim off whitespace
+										while ([[_tmpString string] hasSuffixCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]])
+										{
+											[_tmpString deleteCharactersInRange:NSMakeRange([_tmpString length]-1, 1)];
+										}
+										
+										[_tmpString appendString:@"\n"];
 									}
-									
-									[_tmpString appendString:@"\n"];
+								}
+								
+								[_tmpString appendAttributedString:nodeString];
+								theTag.didOutput = YES;
+								
+								if (!_shouldKeepDocumentNodeTree)
+								{
+									// we don't need the children any more
+									[theTag removeAllChildNodes];
 								}
 							}
 							
-							[_tmpString appendAttributedString:nodeString];
-							theTag.didOutput = YES;
-							
-							if (!_shouldKeepDocumentNodeTree)
-							{
-								// we don't need the children any more
-								[theTag removeAllChildNodes];
-							}
 						}
-						
-					}
-				});
+					});
+				}
+				
 			}
 			
-		}
-
-		while (![_currentTag.name isEqualToString:elementName])
-		{
-			// missing end of element, attempt to recover
+			while (![_currentTag.name isEqualToString:elementName])
+			{
+				// missing end of element, attempt to recover
+				_currentTag = [_currentTag parentElement];
+			}
+			
+			// closing the root node, ignore everything afterwards
+			if (_currentTag == _rootNode)
+			{
+				_ignoreParseEvents = YES;
+			}
+			
+			// go back up a level
 			_currentTag = [_currentTag parentElement];
 		}
-		
-		// closing the root node, ignore everything afterwards
-		if (_currentTag == _rootNode)
-		{
-			_ignoreParseEvents = YES;
-		}
-
-		// go back up a level
-		_currentTag = [_currentTag parentElement];
 	});
 }
 
