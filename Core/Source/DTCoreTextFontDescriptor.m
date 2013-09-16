@@ -87,7 +87,11 @@ static BOOL _needsChineseFontCascadeFix = NO;
 		_needsChineseFontCascadeFix = YES;
 	}
 #endif
-	
+}
+
+// preloads all available system fonts for faster font matching
++ (void)asyncPreloadFontLookupTable
+{
 	// asynchronically load all available fonts into override table
 	[self _createDictionaryOfAllAvailableFontOverrideNamesWithCompletion:^(NSDictionary *dictionary) {
 		
@@ -601,8 +605,12 @@ static BOOL _needsChineseFontCascadeFix = NO;
 	{
 		matchingFont = CTFontCreateWithFontDescriptor(matchingFontDescriptor, _pointSize, NULL);
 		
-		CFRelease(searchingFontDescriptor);
 		CFRelease(matchingFontDescriptor);
+	}
+	
+	if (searchingFontDescriptor)
+	{
+		CFRelease(searchingFontDescriptor);
 	}
 	
 	// check if we indeed got an oblique font if we wanted one
