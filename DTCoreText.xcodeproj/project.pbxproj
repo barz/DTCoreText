@@ -3063,7 +3063,6 @@
 				);
 				INFOPLIST_FILE = "Core/Test/MacUnitTest-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.7;
-				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -3214,7 +3213,6 @@
 					"\"$(SRCROOT)/Core/Externals\"/**",
 				);
 				INFOPLIST_FILE = "Core/DTCoreText-Info.plist";
-				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = DTCoreText;
 				SDKROOT = macosx;
