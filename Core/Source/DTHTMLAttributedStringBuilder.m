@@ -290,11 +290,6 @@
 	_defaultTag.textScale = _textScale;
 	_defaultTag.currentTextSize = _defaultFontDescriptor.pointSize;
 	
-#if DTCORETEXT_FIX_14684188
-	// workaround, only necessary while rdar://14684188 is not fixed
-	_defaultTag.textColor = [UIColor blackColor];
-#endif
-	
 	id defaultColor = [_options objectForKey:DTDefaultTextColor];
 	if (defaultColor)
 	{
@@ -366,7 +361,7 @@
 	
 	void (^blockquoteBlock)(void) = ^
 	{
-		_currentTag.paragraphStyle.headIndent += 25.0 * _textScale;
+		_currentTag.paragraphStyle.headIndent += (CGFloat)25.0 * _textScale;
 		_currentTag.paragraphStyle.firstLineHeadIndent = _currentTag.paragraphStyle.headIndent;
 		_currentTag.paragraphStyle.paragraphSpacing = _defaultFontDescriptor.pointSize;
 	};
