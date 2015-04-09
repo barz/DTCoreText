@@ -59,7 +59,7 @@
 		CGFloat neededContentHeight = [self requiredRowHeightInTableView:_containingTableView];
 		
 		// after the first call here the content view size is correct
-		CGRect frame = CGRectMake(0, 0, self.contentView.bounds.size.width, neededContentHeight);
+		CGRect frame = CGRectMake(8, 0, self.contentView.bounds.size.width - 16, neededContentHeight);
 		// only change frame if width has changed to avoid extra layouting
 		// Hsoi 2013-05-30 - or if the current height is less than what we need
 		if (_attributedTextContextView.frame.size.width != frame.size.width || _attributedTextContextView.frame.size.height < neededContentHeight)
@@ -171,7 +171,7 @@
 	}
 	
 	BOOL ios6Style = (NSFoundationVersionNumber < DTNSFoundationVersionNumber_iOS_7_0);
-	CGFloat contentWidth = tableView.frame.size.width;
+	CGFloat contentWidth = tableView.frame.size.width - 16;
 	
 	// reduce width for grouped table views
 	if (ios6Style && tableView.style == UITableViewStyleGrouped)
